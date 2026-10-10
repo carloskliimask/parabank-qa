@@ -1,0 +1,222 @@
+{
+  "info": {
+    "name": "ParaBank API checks",
+    "description": "Account and transfer API checks. The transfer folder sends a demo transaction and verifies both balances.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "basic",
+    "basic": [
+      { "key": "username", "value": "{{username}}", "type": "string" },
+      { "key": "password", "value": "{{password}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "Customer accounts (AC-ACCT-01.1)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/json" }],
+        "url": "{{baseUrl}}/services/bank/customers/{{customerId}}/accounts"
+      },
+      "event": [{
+        "listen": "test",
+        "script": {
+          "type": "text/javascript",
+          "exec": [
+            "pm.test('returns an account list', function () {",
+            "    pm.response.to.have.status(200);",
+            "    const accounts = pm.response.json();",
+            "    pm.expect(accounts).to.be.an('array').that.is.not.empty;",
+            "    const account = accounts.find(function (item) { return String(item.id) === pm.environment.get('accountId'); });",
+            "    pm.expect(account, 'configured account').to.exist;",
+            "    pm.expect(account.customerId).to.eql(Number(pm.environment.get('customerId')));",
+            "    pm.expect(account.type).to.eql('CHECKING');",
+            "    pm.expect(account.balance).to.be.a('number');",
+            "});"
+          ]
+        }
+      }]
+    },
+    {
+      "name": "Account details (AC-ACCT-01.2)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/json" }],
+        "url": "{{baseUrl}}/services/bank/accounts/{{accountId}}"
+      },
+      "event": [{
+        "listen": "test",
+        "script": {
+          "type": "text/javascript",
+          "exec": [
+            "pm.test('returns the requested account and its balance', function () {",
+            "    pm.response.to.have.status(200);",
+            "    const account = pm.response.json();",
+            "    pm.expect(account.id).to.eql(Number(pm.environment.get('accountId')));",
+            "    pm.expect(account.customerId).to.eql(Number(pm.environment.get('customerId')));",
+            "    pm.expect(account.type).to.be.a('string').and.not.empty;",
+            "    pm.expect(account.balance).to.be.a('number');",
+            "});"
+          ]
+        }
+      }]
+    },
+    {
+      "name": "Account transactions (AC-TXN-01.2)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/json" }],
+        "url": "{{baseUrl}}/services/bank/accounts/{{accountId}}/transactions"
+      },
+      "event": [{
+        "listen": "test",
+        "script": {
+          "type": "text/javascript",
+          "exec": [
+            "pm.test('returns transaction records for the requested account', function () {",
+            "    pm.response.to.have.status(200);",
+            "    const transactions = pm.response.json();",
+            "    pm.expect(transactions).to.be.an('array').that.is.not.empty;",
+            "    transactions.forEach(function (transaction) {",
+            "        pm.expect(String(transaction.accountId)).to.eql(pm.environment.get('accountId'));",
+            "        pm.expect(transaction.id).to.be.a('number');",
+            "        pm.expect(transaction.type).to.be.oneOf(['Debit', 'Credit']);",
+            "        pm.expect(transaction.date).to.be.a('number');",
+            "        pm.expect(transaction.amount).to.be.a('number');",
+            "        pm.expect(transaction.description).to.be.a('string').and.not.empty;",
+            "    });",
+            "});"
+          ]
+        }
+      }]
+    },
+    {
+      "name": "Funds transfer (AC-TRANSFER-01.1)",
+      "description": "Transfers the configured demo amount, then confirms the source debit and destination credit. This changes ParaBank test data.",
+      "item": [
+        {
+          "name": "Read source balance before transfer",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/services/bank/accounts/{{transferFromAccountId}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('source account has enough demo funds', function () {",
+                "    pm.response.to.have.status(200);",
+                "    const account = pm.response.json();",
+                "    pm.expect(account.id).to.eql(Number(pm.environment.get('transferFromAccountId')));",
+                "    pm.expect(account.balance).to.be.a('number');",
+                "    pm.expect(account.balance).to.be.at.least(Number(pm.environment.get('transferAmount')));",
+                "    pm.environment.set('transferFromBalanceBefore', account.balance);",
+                "});"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Read destination balance before transfer",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/services/bank/accounts/{{transferToAccountId}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('destination account is available', function () {",
+                "    pm.response.to.have.status(200);",
+                "    const account = pm.response.json();",
+                "    pm.expect(account.id).to.eql(Number(pm.environment.get('transferToAccountId')));",
+                "    pm.expect(account.id).not.to.eql(Number(pm.environment.get('transferFromAccountId')));",
+                "    pm.expect(account.balance).to.be.a('number');",
+                "    pm.environment.set('transferToBalanceBefore', account.balance);",
+                "});"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Submit transfer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/services/bank/transfer?fromAccountId={{transferFromAccountId}}&toAccountId={{transferToAccountId}}&amount={{transferAmount}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('transfer confirms the amount and account pair', function () {",
+                "    pm.response.to.have.status(200);",
+                "    const confirmation = pm.response.text();",
+                "    pm.expect(confirmation).to.include('Successfully transferred $' + Number(pm.environment.get('transferAmount')).toFixed(2));",
+                "    pm.expect(confirmation).to.include('account #' + pm.environment.get('transferFromAccountId'));",
+                "    pm.expect(confirmation).to.include('account #' + pm.environment.get('transferToAccountId'));",
+                "});"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Verify source debit",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/services/bank/accounts/{{transferFromAccountId}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('source balance decreases by the transfer amount', function () {",
+                "    pm.response.to.have.status(200);",
+                "    const account = pm.response.json();",
+                "    const beforeCents = Math.round(Number(pm.environment.get('transferFromBalanceBefore')) * 100);",
+                "    const amountCents = Math.round(Number(pm.environment.get('transferAmount')) * 100);",
+                "    const afterCents = Math.round(account.balance * 100);",
+                "    pm.expect(account.id).to.eql(Number(pm.environment.get('transferFromAccountId')));",
+                "    pm.expect(afterCents).to.eql(beforeCents - amountCents);",
+                "});"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Verify destination credit",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/services/bank/accounts/{{transferToAccountId}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('destination balance increases by the transfer amount', function () {",
+                "    pm.response.to.have.status(200);",
+                "    const account = pm.response.json();",
+                "    const beforeCents = Math.round(Number(pm.environment.get('transferToBalanceBefore')) * 100);",
+                "    const amountCents = Math.round(Number(pm.environment.get('transferAmount')) * 100);",
+                "    const afterCents = Math.round(account.balance * 100);",
+                "    pm.expect(account.id).to.eql(Number(pm.environment.get('transferToAccountId')));",
+                "    pm.expect(afterCents).to.eql(beforeCents + amountCents);",
+                "});"
+              ]
+            }
+          }]
+        }
+      ]
+    }
+  ]
+}
