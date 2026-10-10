@@ -4,7 +4,7 @@ QA project for the ParaBank demo banking application. Covering UI testing with P
 
 ## Run locally
 
-Start ParaBank at `http://127.0.0.1:8080/parabank/`, then:
+Start ParaBank at `http://127.0.0.1:8080/parabank/` then:
 
 ```sh
 cd automation
