@@ -38,6 +38,12 @@ jobs:
         working-directory: parabank
         run: mvn -B -DskipTests package
 
+      - name: Prepare ParaBank WAR for Docker
+        working-directory: parabank
+        run: |
+          war=$(find target -maxdepth 1 -type f -name '*.war' | head -n 1)
+          cp "$war" target/parabank.war
+
       - name: Start ParaBank
         run: |
           docker build -t parabank-ci ./parabank
